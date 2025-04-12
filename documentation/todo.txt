@@ -1,0 +1,15 @@
+[X] Set up dev environment
+    [X] Set up a new repo
+    [X] Set up a new virtual environment
+[X] Set up access from Python to the Access DB
+[X] Ingest a table/CSV with the names of the Access tables
+[ ] Turn into a Master table that can be used to load the data
+    [ ] Some tables won't be imported
+    [ ] Some tables are event tables.  Load the event as a field.
+    [ ] Some tables are topic tables.  Load the topic as a field.
+[ ] Create a Master table of field names, containing the unique headers from each table.
+[ ] Identify which fields to keep, any to ignore, and lock-in the common field names.
+    [ ] Correct any field names that are not common.
+[ ] Create the new schema
+[ ] Load the data into the new schema
+[ ] Test

@@ -1,0 +1,76 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+        exclude: '.*\.csv$'
+    -   id: check-yaml
+    -   id: check-added-large-files
+        exclude: '.*\.csv$'
+    -   id: check-ast
+    -   id: check-toml
+
+# # ! Replaced reorder_python_imports with isort
+# # -   repo: https://github.com/asottile/reorder_python_imports
+# #     rev: v3.9.0
+# #     hooks:
+# #     -   id: reorder-python-imports
+
+# Config for isort is in the pyproject.toml file.
+-   repo: https://github.com/PyCQA/isort
+    rev: 6.0.1
+    hooks:
+    -   id: isort
+
+-   repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+    -   id: autoflake
+        name: autoflake
+        args:
+          [
+            "--in-place",
+            "--remove-unused-variables",
+            "--remove-all-unused-imports",
+          ]
+        language: python
+        files: \.py$
+
+# Config for flake8 is in the .flake8 file.
+-   repo: https://github.com/pycqa/flake8
+    rev: 7.2.0
+    hooks:
+    -   id: flake8
+
+-   repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.1
+    hooks:
+    -   id: pyupgrade
+
+# Config for black is in the pyproject.toml file.
+-   repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+    -   id: black
+        language_version: python3
+
+# # ! Not needed for most repos.
+# # Note that as configured below, this will both report problems
+# # in a SQL file and try to fix it too.
+# # -   repo: https://github.com/sqlfluff/sqlfluff
+# #     rev: 2.1.0
+# #     hooks:
+# #     -   id: sqlfluff-lint
+# #         args:
+# #           [
+# #             --dialect, "tsql",
+# #           ]
+# #     -   id: sqlfluff-fix
+# #         args:
+# #           [
+# #             --dialect, "tsql",
+# #           ]

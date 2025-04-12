@@ -172,3 +172,30 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+
+# Exclude folders
+testing_folder/
+archive/
+
+# Exclude files
+deploy/deployment_logs/*.txt
+
+*.xls*
+
+.env
+
+*.csv
+*.zip
+
+*.bak
+
+test_*.txt
+
+data/*
+
+# Include specific files
+!deploy/deployment_logs/.gitkeep
+!data/.gitkeep
+!data/archive/.gitkeep
