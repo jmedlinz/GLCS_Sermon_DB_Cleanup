@@ -25,6 +25,7 @@
         "dotenv",
         "GLCS",
         "isort",
+        "levelname",
         "oracledb",
         "pyproject",
         "pytest",
