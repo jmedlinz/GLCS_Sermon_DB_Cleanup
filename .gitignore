@@ -187,6 +187,7 @@ deploy/deployment_logs/*.txt
 .env
 
 *.csv
+*.tsv
 *.zip
 
 *.bak
