@@ -18,7 +18,7 @@ from typing import Dict, List, Set, Tuple  # For type hints to make code clearer
 import pyodbc  # Library for connecting to Microsoft Access databases
 
 # Import configuration settings and reporting functions
-from config import (
+from .config import (
     APP_ENVIRONMENT,
     APP_NAME,
     COMPUTERNAME,
@@ -28,7 +28,7 @@ from config import (
     SOURCE_DB_PATH,
     USERNAME,
 )
-from report import (
+from .report import (
     report_comment,
     report_error,
     report_error_continue,
@@ -37,7 +37,7 @@ from report import (
     report_section,
     report_subsection,
 )
-from utils import check_file_exists, database_connection, format_value
+from .utils import check_file_exists, database_connection, format_value
 
 # Constants - minimum number of columns we expect in our files
 MIN_MASTER_COLUMNS = 3  # ID, Table Name, Enabled

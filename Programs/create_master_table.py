@@ -18,7 +18,7 @@ import os  # For file path operations
 from typing import Any, Dict, List, Tuple  # Type hints to make code clearer
 
 # Import configuration settings and reporting functions
-from config import (
+from .config import (
     APP_ENVIRONMENT,
     APP_NAME,
     COMPUTERNAME,
@@ -26,7 +26,7 @@ from config import (
     MASTER_TSV_PATH,
     USERNAME,
 )
-from report import (
+from .report import (
     report_comment,
     report_error,
     report_header,
@@ -34,7 +34,7 @@ from report import (
     report_section,
     report_subsection,
 )
-from utils import (
+from .utils import (
     database_connection,
     fetch_table_names,
 )

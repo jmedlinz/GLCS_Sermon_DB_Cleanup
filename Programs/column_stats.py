@@ -17,14 +17,14 @@ from dataclasses import dataclass  # For creating simple data container classes
 from typing import Dict, List, Set  # For type hints to make code clearer
 
 # Import configuration settings and reporting functions
-from config import (
+from .config import (
     APP_ENVIRONMENT,
     APP_NAME,
     COMPUTERNAME,
     HEADERS_TSV_PATH,
     USERNAME,
 )
-from report import (
+from .report import (
     report_comment,
     report_error,
     report_header,
@@ -32,7 +32,7 @@ from report import (
     report_section,
     report_subsection,
 )
-from utils import check_file_exists
+from .utils import check_file_exists
 
 # ----- Settings and Constants -----
 

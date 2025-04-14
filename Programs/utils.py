@@ -14,8 +14,8 @@ from typing import Any, List, Optional
 import pyodbc
 
 # Import configuration and reporting
-from config import SOURCE_DB_PATH
-from report import report_error, report_error_continue, report_info
+from .config import SOURCE_DB_PATH
+from .report import report_error, report_error_continue, report_info
 
 
 @contextmanager

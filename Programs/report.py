@@ -8,7 +8,7 @@ from datetime import datetime
 from rich.console import Console
 from rich.theme import Theme
 
-from config import APP_ENVIRONMENT, DATA_DIR
+from .config import APP_ENVIRONMENT, DATA_DIR
 
 USE_UNIQUE_LOG_FILENAME = False
 

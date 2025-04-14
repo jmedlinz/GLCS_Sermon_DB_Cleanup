@@ -16,4 +16,4 @@ cd c:\users\jmedlin\documents\github\glcs_sermon_db_cleanup
 
 :: Run the Python script
 @REM poetry run python main.py %path_param%
-poetry run python main.py
+poetry run python -m Programs.main

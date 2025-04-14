@@ -38,7 +38,8 @@ COMPUTERNAME = os.getenv("COMPUTERNAME")  # Example: "LAPTOP-ABC123"
 
 # Base directory where all our data files are stored
 # The 'r' before the string makes it a "raw string" so backslashes are treated literally
-DATA_DIR = r"C:\Users\jmedlin\Documents\GitHub\GLCS_Sermon_DB_Cleanup\data"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
 # ---------- Database Settings ----------
 # Microsoft Access database file information
