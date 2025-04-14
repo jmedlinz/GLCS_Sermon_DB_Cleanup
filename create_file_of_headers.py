@@ -46,17 +46,26 @@ if not os.path.exists(SOURCE_DB_PATH):
 # Read table names from the master TSV file
 report_subsection("Reading table names from master file")
 tables = []  # Will store (table_id, table_name) tuples
+skipped_tables = 0  # Counter for skipped tables
 try:
     with open(MASTER_TSV_PATH, encoding="utf-8") as tsv_file:
         reader = csv.reader(tsv_file, delimiter="\t")
         next(reader)  # Skip header row
         for row in reader:
-            if len(row) >= 2:  # Ensure the row has at least 2 columns
+            if len(row) >= 3:  # Ensure the row has at least 3 columns (including Enabled)
                 table_id = row[0]  # ID is in the first column
                 table_name = row[1]  # Table name is in the second column
-                tables.append((table_id, table_name))
+                enabled = row[2]  # Enabled flag is in the third column
 
-    report_info(f"Read {len(tables)} table names from master file")
+                # Only include tables with Enabled = 1
+                if enabled == "1":
+                    tables.append((table_id, table_name))
+                else:
+                    skipped_tables += 1
+
+    report_info(f"Read {len(tables)} enabled table names from master file")
+    if skipped_tables > 0:
+        report_info(f"Skipped {skipped_tables} disabled tables")
 except Exception as ex:
     report_error(f"Error reading master table file: {ex}")
     exit(1)
@@ -126,6 +135,8 @@ try:
     report_info("Successfully wrote headers to TSV")
     report_comment(f"Filename: '{HEADERS_TSV_FILE}'")
     report_comment(f"Processed {len(tables)} tables with {len(all_headers)} columns")
+    if skipped_tables > 0:
+        report_comment(f"Skipped {skipped_tables} disabled tables")
 
 except pyodbc.Error as ex:
     sqlstate = ex.args[0]
