@@ -96,8 +96,8 @@ ID	Table Name	Enabled	Event	Series
 95	AR FBC Osceola	1	0	0
 96	AR Ouachita Baptist University Arkadelphia	1	0	0
 97	AZ Village Park Baptist Church	1	0	0
-98	BLOG POSTS	1	0	0
-99	BOOK LIBRARY	1	0	0
+98	BLOG POSTS	0	0	0
+99	BOOK LIBRARY	0	0	0
 100	Bethel Baptist	1	0	0
 101	Bible Driven Church (Purpose Statement)	1	0	0
 102	Brazil - Niteroi Conference	1	0	0
@@ -115,7 +115,7 @@ ID	Table Name	Enabled	Event	Series
 114	FBCMS Kids Kamp	1	0	0
 115	FBCMS World Impact Conferences	1	0	0
 116	FBCMS Youth Camps	1	0	0
-117	FBCMS-Topics	1	0	0
+117	FBCMS-Topics	0	0	0
 118	FL Calvary Baptist Pensacola	1	0	0
 119	FL FBC Lake Butler	1	0	0
 120	FL FBC Ocala	1	0	0
@@ -171,9 +171,9 @@ ID	Table Name	Enabled	Event	Series
 170	MS Tate Baptist Corinth	1	0	0
 171	MS Unity Baptist Iuka	1	0	0
 172	MS Westside Baptist Starkville	1	0	0
-173	Matt Fowler - Sunday AM	1	0	0
-174	Matt Fowler - Sunday PM	1	0	0
-175	Matt Fowler - Wednesday PM	1	0	0
+173	Matt Fowler - Sunday AM	0	0	0
+174	Matt Fowler - Sunday PM	0	0	0
+175	Matt Fowler - Wednesday PM	0	0	0
 176	Missions Conferences	1	0	0
 177	Mount Hebron Baptist	1	0	0
 178	NC Calvary Fellowship Arden	1	0	0
@@ -188,11 +188,11 @@ ID	Table Name	Enabled	Event	Series
 187	PM MESSAGES	1	0	0
 188	PROVERBS	1	0	0
 189	PSALMS	1	0	0
-190	Pastor's Conference Information	1	0	0
+190	Pastor's Conference Information	0	0	0
 191	Pastors - Preachers	1	0	0
 192	Peru Mission Trip 2005	1	0	0
 193	Philippines	1	0	0
-194	Plant/Partner/Missionary Visits	1	0	0
+194	Plant/Partner/Missionary Visits	0	0	0
 195	Pulpit Guests	1	0	0
 196	Purpose Series	1	0	0
 197	Purpose Series 2	1	0	0
