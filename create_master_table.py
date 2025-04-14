@@ -1,10 +1,13 @@
 """
-This script connects to a Microsoft Access database and retrieves the names of all user tables (excluding system tables).
-It then writes these table names to a TSV (Tab-Separated Values) file with additional columns for "ID", "Enabled", "Event", and "Series".
+This script reads existing table data from a master TSV file and connects to a Microsoft Access database to retrieve user table names.
+It merges the existing data with the database table names, identifying added, removed, and retained tables.
+The merged data is then written back to the master TSV file, including columns for "ID", "Enabled", "Event", and "Series".
 """
 
 import csv
 import os
+from contextlib import contextmanager
+from typing import Any, Dict, List, Tuple
 
 import pyodbc
 
@@ -28,29 +31,62 @@ from report import (
     report_subsection,
 )
 
-report_header(APP_NAME, COMPUTERNAME, APP_ENVIRONMENT, USERNAME)
+# Constants
+MIN_EXPECTED_COLUMNS = 5
 
-report_section("Create Master Table From Access Database")
 
-# Check if the database file exists
-if not os.path.exists(SOURCE_DB_PATH):
-    report_error(f"Error: Database file not found at '{SOURCE_DB_PATH}'")
-    exit()
+@contextmanager
+def database_connection():
+    """Context manager for database connections."""
+    conn_str = r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};" r"DBQ=" + SOURCE_DB_PATH + ";"
+    conn = None
+    cursor = None
+    try:
+        conn = pyodbc.connect(conn_str)
+        cursor = conn.cursor()
+        yield conn, cursor
+    except pyodbc.Error as ex:
+        sqlstate = ex.args[0]
+        report_error("Error connecting to database.")
+        report_error_continue(f"SQLSTATE: {sqlstate}")
+        report_error_continue(f"Message: {ex}")
+        if "IM002" in sqlstate:
+            report_error_continue("This error often means the ODBC driver is not installed or not found.")
+            report_error_continue(
+                "Ensure the Microsoft Access Database Engine Redistributable is installed (32-bit or 64-bit matching your Python)."
+            )
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
-# Data structure to hold existing file entries
-existing_entries = {}
-next_id = 1
 
-# Check if the output file already exists
-if os.path.exists(MASTER_TSV_PATH):
+def read_existing_data() -> Tuple[Dict[str, Dict[str, Any]], int]:
+    """
+    Read existing data from the master TSV file.
+
+    Returns:
+        Tuple containing:
+            - Dictionary mapping table names to their properties
+            - Next available ID for new entries
+    """
+    existing_entries = {}
+    next_id = 1
+
+    if not os.path.exists(MASTER_TSV_PATH):
+        report_info(f"No existing master TSV file found at '{MASTER_TSV_PATH}'.")
+        return existing_entries, next_id
+
     report_info(f"Master TSV file already exists at '{MASTER_TSV_PATH}'. Will merge with database information.")
     try:
         with open(MASTER_TSV_PATH, encoding="utf-8") as tsv_file:
             reader = csv.reader(tsv_file, delimiter="\t")
-            headers = next(reader)  # Skip header row
+            _ = next(reader)  # Skip header row
 
             for row in reader:
-                if len(row) >= 5:  # Ensure the row has all needed columns
+                if len(row) >= MIN_EXPECTED_COLUMNS:  # Ensure the row has all needed columns
                     table_id = int(row[0]) if row[0].isdigit() else 0
                     table_name = row[1].strip()
                     enabled = row[2]
@@ -70,108 +106,192 @@ if os.path.exists(MASTER_TSV_PATH):
         report_info(f"Read {len(existing_entries)} table entries from existing master file")
     except Exception as ex:
         report_error(f"Error reading existing master file: {ex}")
+        raise
+
+    return existing_entries, next_id
+
+
+def connect_to_database() -> Tuple[pyodbc.Connection, pyodbc.Cursor]:
+    """
+    Establish connection to the Access database.
+
+    Returns:
+        Tuple containing the database connection and cursor
+
+    Raises:
+        SystemExit: If the database connection fails
+    """
+    report_subsection("Connecting to database")
+    report_comment(f"Database file: '{SOURCE_DB_FILE}'")
+
+    if not os.path.exists(SOURCE_DB_PATH):
+        report_error(f"Error: Database file not found at '{SOURCE_DB_PATH}'")
         exit(1)
 
-# Construct the connection string
-# You might need to adjust the driver name based on your installed version
-# Common drivers:
-# 'Microsoft Access Driver (*.mdb, *.accdb)'
-# 'Microsoft Access Driver (*.mdb)'
-conn_str = r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};" r"DBQ=" + SOURCE_DB_PATH + ";"
+    try:
+        with database_connection() as (conn, cursor):
+            report_info("Successfully connected")
+            return conn, cursor
+    except Exception:
+        exit(1)
 
-table_names = []
-conn = None  # Initialize conn to None
-cursor = None  # Initialize cursor to None
 
-report_subsection("Connecting to database")
-report_comment(f"Database file: '{SOURCE_DB_FILE}'")
+def fetch_table_names(cursor: pyodbc.Cursor) -> List[str]:
+    """
+    Fetch table names from the database.
 
-try:
-    # Establish the database connection
-    conn = pyodbc.connect(conn_str)
-    cursor = conn.cursor()
+    Args:
+        cursor: Database cursor to execute queries
 
-    report_info("Successfully connected")
+    Returns:
+        List of table names from the database
 
+    Raises:
+        SystemExit: If fetching tables fails
+    """
     report_subsection("Fetching table names")
+    table_names = []
 
-    # Fetch table names (excluding system tables starting with 'MSys')
-    for row in cursor.tables(tableType="TABLE"):
-        table_name = row.table_name
-        if not table_name.startswith("MSys"):
-            table_names.append(table_name)
+    try:
+        # Fetch table names (excluding system tables starting with 'MSys')
+        for row in cursor.tables(tableType="TABLE"):
+            table_name = row.table_name
+            if not table_name.startswith("MSys"):
+                table_names.append(table_name)
 
-    report_info(f"Retrieved {len(table_names)} user tables from database")
+        report_info(f"Retrieved {len(table_names)} user tables from database")
+        return table_names
+    except pyodbc.Error as ex:
+        report_error(f"Error fetching tables: {ex}")
+        exit(1)
 
+
+def merge_data(
+    existing_entries: Dict[str, Dict[str, Any]], table_names: List[str], next_id: int
+) -> Tuple[Dict[str, Dict[str, Any]], List[str], List[str], List[str]]:
+    """
+    Merge existing entries with database tables.
+
+    Args:
+        existing_entries: Dictionary of existing table entries from TSV
+        table_names: List of table names from the database
+        next_id: Next available ID to assign to new entries
+
+    Returns:
+        Tuple containing:
+            - Dictionary of merged entries
+            - List of added table names
+            - List of removed table names
+            - List of retained table names
+    """
     # Track changes for reporting
     added_tables = []
     removed_tables = []
     retained_tables = []
 
-    # Process merging logic
-    merged_entries = {}
+    try:
+        # Process merging logic
+        merged_entries = {}
 
-    # 1. Process tables from database
-    for table in sorted(table_names):
-        table = table.strip()
-        if table in existing_entries:
-            # Table exists in both - retain file info
-            merged_entries[table] = existing_entries[table]
-            retained_tables.append(table)
-        else:
-            # Table in DB but not in file - add with defaults
-            merged_entries[table] = {"id": next_id, "enabled": "1", "event": "0", "series": "0"}
-            next_id += 1
-            added_tables.append(table)
+        # 1. Process tables from database
+        for table in sorted(table_names):
+            table = table.strip()
+            if table in existing_entries:
+                # Table exists in both - retain file info
+                merged_entries[table] = existing_entries[table]
+                retained_tables.append(table)
+            else:
+                # Table in DB but not in file - add with defaults
+                merged_entries[table] = {"id": next_id, "enabled": "1", "event": "0", "series": "0"}
+                next_id += 1
+                added_tables.append(table)
 
-    # 2. Identify tables in file but not in DB
-    for table in existing_entries:
-        if table not in table_names:
-            removed_tables.append(table)
+        # 2. Identify tables in file but not in DB
+        for table in existing_entries:
+            if table not in table_names:
+                removed_tables.append(table)
 
-    # Write merged data to TSV file
+        return merged_entries, added_tables, removed_tables, retained_tables
+    except Exception as ex:
+        report_error(f"Error merging data: {ex}")
+        raise
+
+
+def write_output(
+    merged_entries: Dict[str, Dict[str, Any]],
+    added_tables: List[str],
+    removed_tables: List[str],
+    retained_tables: List[str],
+) -> bool:
+    """
+    Write the merged data to the output TSV file.
+
+    Args:
+        merged_entries: Dictionary of merged table entries
+        added_tables: List of newly added table names
+        removed_tables: List of removed table names
+        retained_tables: List of retained table names
+
+    Returns:
+        Boolean indicating success
+    """
     report_subsection("Creating merged output file")
-    with open(MASTER_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
-        writer = csv.writer(tsv_file, delimiter="\t")
-        writer.writerow(["ID", "Table Name", "Enabled", "Event", "Series"])
+    try:
+        with open(MASTER_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
+            writer = csv.writer(tsv_file, delimiter="\t")
+            writer.writerow(["ID", "Table Name", "Enabled", "Event", "Series"])
 
-        for table in sorted(merged_entries.keys()):
-            entry = merged_entries[table]
-            writer.writerow([entry["id"], table, entry["enabled"], entry["event"], entry["series"]])
+            for table in sorted(merged_entries.keys()):
+                entry = merged_entries[table]
+                writer.writerow([entry["id"], table, entry["enabled"], entry["event"], entry["series"]])
 
-    # Report merge statistics
-    report_info(f"Successfully wrote {len(merged_entries)} table entries to master TSV file")
-    report_comment(f"Filename: '{MASTER_TSV_FILE}'")
+        # Report merge statistics
+        report_info(f"Successfully wrote {len(merged_entries)} table entries to master TSV file")
+        report_comment(f"Filename: '{MASTER_TSV_FILE}'")
 
-    if added_tables:
-        report_comment(f"Added {len(added_tables)} new tables:")
-        for table in added_tables:
-            report_comment(f"   - {table}")
+        if added_tables:
+            report_comment(f"Added {len(added_tables)} new tables:")
+            for table in added_tables:
+                report_comment(f"   - {table}")
 
-    if removed_tables:
-        report_comment(f"Removed {len(removed_tables)} tables not found in database:")
-        for table in removed_tables:
-            report_comment(f"   - {table}")
+        if removed_tables:
+            report_comment(f"Removed {len(removed_tables)} tables not found in database:")
+            for table in removed_tables:
+                report_comment(f"   - {table}")
 
-    report_comment(f"Retained {len(retained_tables)} existing tables")
-
-except pyodbc.Error as ex:
-    sqlstate = ex.args[0]
-    report_error("Error connecting to database or fetching tables.")
-    report_error_continue(f"SQLSTATE: {sqlstate}")
-    report_error_continue(f"Message: {ex}")
-    if "IM002" in sqlstate:
-        report_error_continue("This error often means the ODBC driver is not installed or not found.")
-        report_error_continue(
-            "Ensure the Microsoft Access Database Engine Redistributable is installed (32-bit or 64-bit matching your Python)."
-        )
+        report_comment(f"Retained {len(retained_tables)} existing tables")
+        return True
+    except Exception as ex:
+        report_error(f"Error writing output file: {ex}")
+        return False
 
 
-finally:
-    # Ensure the connection is closed
-    if cursor:
-        cursor.close()
-        # report_comment("Cursor closed.")
-    if conn:
-        conn.close()
-        # report_comment("Database connection closed.")
+def main() -> None:
+    """Main function to orchestrate the process."""
+    report_header(APP_NAME, COMPUTERNAME, APP_ENVIRONMENT, USERNAME)
+    report_section("Create Master Table From Access Database")
+
+    try:
+        # Read existing data
+        existing_entries, next_id = read_existing_data()
+
+        # Connect to the database
+        with database_connection() as (conn, cursor):
+            # Fetch table names
+            table_names = fetch_table_names(cursor)
+
+            # Merge data
+            merged_entries, added_tables, removed_tables, retained_tables = merge_data(
+                existing_entries, table_names, next_id
+            )
+
+            # Write output
+            write_output(merged_entries, added_tables, removed_tables, retained_tables)
+
+    except Exception as ex:
+        report_error(f"An unexpected error occurred: {ex}")
+        exit(1)
+
+
+if __name__ == "__main__":
+    main()
