@@ -1,6 +1,6 @@
 """
 This script connects to a Microsoft Access database and retrieves the names of all user tables (excluding system tables).
-It then writes these table names to a TSV (Tab-Separated Values) file with additional columns for "ID", "Active", "Event", and "Series".
+It then writes these table names to a TSV (Tab-Separated Values) file with additional columns for "ID", "Enabled", "Event", and "Series".
 """
 
 import csv
@@ -73,15 +73,17 @@ try:
 
     report_info(f"Retrieved {len(table_names)} user tables")
 
-    # Write table names to TSV file with additional "ID", "Active", "Event", and "Series" columns
+    # Write table names to TSV file with additional "ID", "Enabled", "Event", and "Series" columns
     report_subsection("Creating output file")
     with open(MASTER_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
         writer = csv.writer(tsv_file, delimiter="\t")  # Use tab as the delimiter
-        writer.writerow(["ID", "Table Name", "Active", "Event", "Series"])  # Write header with additional columns
+        # Strip spaces from header row
+        writer.writerow(["ID".strip(), "Table Name".strip(), "Enabled".strip(), "Event".strip(), "Series".strip()])
+
         for idx, table in enumerate(sorted(table_names), start=1):  # Sort names alphabetically and add ID
             writer.writerow(
-                [idx, table, 1, 0, 0]
-            )  # Set "Active" to 1, "Event" to 0, and "Series" to 0 for all rows
+                [idx, table.strip(), 1, 0, 0]
+            )  # Strip spaces from table name and set default values
 
     report_info("Successfully wrote table names to TSV")
     report_comment(f"Filename: '{MASTER_TSV_FILE}'")

@@ -200,3 +200,4 @@ data/*
 !deploy/deployment_logs/.gitkeep
 !data/.gitkeep
 !data/archive/.gitkeep
+!data/master_table.tsv
