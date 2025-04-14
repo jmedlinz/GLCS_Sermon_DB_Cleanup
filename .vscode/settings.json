@@ -27,6 +27,7 @@
         "isort",
         "levelname",
         "oracledb",
+        "pyenv",
         "pyproject",
         "pytest",
         "pyupgrade",

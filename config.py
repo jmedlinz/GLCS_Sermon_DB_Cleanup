@@ -22,3 +22,6 @@ SOURCE_DB_PATH = os.path.join(DATA_DIR, SOURCE_DB_FILE)
 
 MASTER_TSV_FILE = "master_table.tsv"
 MASTER_TSV_PATH = os.path.join(DATA_DIR, MASTER_TSV_FILE)
+
+HEADERS_TSV_FILE = "columns.tsv"
+HEADERS_TSV_PATH = os.path.join(DATA_DIR, HEADERS_TSV_FILE)
