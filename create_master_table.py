@@ -14,11 +14,8 @@ The TSV file stores important information about each table including:
 """
 
 import csv  # For reading/writing TSV files
-import os   # For file path operations
-from contextlib import contextmanager  # For safer database connections
+import os  # For file path operations
 from typing import Any, Dict, List, Tuple  # Type hints to make code clearer
-
-import pyodbc  # Library for connecting to Microsoft Access
 
 # Import configuration settings and reporting functions
 from config import (
@@ -27,62 +24,23 @@ from config import (
     COMPUTERNAME,
     MASTER_TSV_FILE,
     MASTER_TSV_PATH,
-    SOURCE_DB_FILE,
-    SOURCE_DB_PATH,
     USERNAME,
 )
 from report import (
     report_comment,
     report_error,
-    report_error_continue,
     report_header,
     report_info,
     report_section,
     report_subsection,
 )
+from utils import (
+    database_connection,
+    fetch_table_names,
+)
 
 # Constants
 MIN_EXPECTED_COLUMNS = 5  # Minimum number of columns we expect in the TSV file
-
-
-@contextmanager
-def database_connection():
-    """
-    Creates a safe way to connect to the database and automatically close it when done.
-
-    This is a context manager that allows us to use a "with" statement for the database connection.
-    It makes sure the database connection is properly closed even if errors occur.
-    """
-    # Create the connection string for Microsoft Access
-    conn_str = r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};" r"DBQ=" + SOURCE_DB_PATH + ";"
-    conn = None  # Initialize connection variable
-    cursor = None  # Initialize cursor variable
-
-    try:
-        # Try to connect to the database
-        conn = pyodbc.connect(conn_str)
-        cursor = conn.cursor()
-        yield conn, cursor  # Return the connection and cursor to the caller
-    except pyodbc.Error as ex:
-        # Handle database connection errors
-        sqlstate = ex.args[0]
-        report_error("Error connecting to database.")
-        report_error_continue(f"SQLSTATE: {sqlstate}")
-        report_error_continue(f"Message: {ex}")
-
-        # Provide helpful message for a common error
-        if "IM002" in sqlstate:
-            report_error_continue("This error often means the ODBC driver is not installed or not found.")
-            report_error_continue(
-                "Ensure the Microsoft Access Database Engine Redistributable is installed (32-bit or 64-bit matching your Python)."
-            )
-        raise  # Re-raise the error after logging it
-    finally:
-        # Always try to close cursor and connection if they were opened
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def read_existing_data() -> Tuple[Dict[str, Dict[str, Any]], int]:
@@ -139,34 +97,6 @@ def read_existing_data() -> Tuple[Dict[str, Dict[str, Any]], int]:
     return existing_entries, next_id
 
 
-def fetch_table_names(cursor: pyodbc.Cursor) -> List[str]:
-    """
-    Gets a list of all user tables from the Access database.
-
-    Args:
-        cursor: Database cursor for executing queries
-
-    Returns:
-        A list of table names found in the database
-    """
-    report_subsection("Fetching table names")
-    table_names = []  # List to store table names
-
-    try:
-        # Get all tables from the database
-        # We skip system tables (those starting with 'MSys')
-        for row in cursor.tables(tableType="TABLE"):
-            table_name = row.table_name
-            if not table_name.startswith("MSys"):
-                table_names.append(table_name)
-
-        report_info(f"Retrieved {len(table_names)} user tables from database")
-        return table_names
-    except pyodbc.Error as ex:
-        report_error(f"Error fetching tables: {ex}")
-        exit(1)  # Exit the program if we can't get table names
-
-
 def merge_data(
     existing_entries: Dict[str, Dict[str, Any]], table_names: List[str], next_id: int
 ) -> Tuple[Dict[str, Dict[str, Any]], List[str], List[str], List[str]]:
@@ -190,8 +120,8 @@ def merge_data(
         - List of unchanged table names
     """
     # Lists to track what happened to each table
-    added_tables = []     # Tables in DB but not in TSV
-    removed_tables = []   # Tables in TSV but not in DB
+    added_tables = []  # Tables in DB but not in TSV
+    removed_tables = []  # Tables in TSV but not in DB
     retained_tables = []  # Tables in both places
 
     try:
@@ -209,10 +139,10 @@ def merge_data(
             else:
                 # This is a new table - create default values for it
                 merged_entries[table] = {
-                    "id": next_id,     # Assign the next available ID
-                    "enabled": "1",    # Enable by default
-                    "event": "0",      # Not an event by default
-                    "series": "0"      # Not a series by default
+                    "id": next_id,  # Assign the next available ID
+                    "enabled": "1",  # Enable by default
+                    "event": "0",  # Not an event by default
+                    "series": "0",  # Not a series by default
                 }
                 next_id += 1  # Increment the ID counter
                 added_tables.append(table)

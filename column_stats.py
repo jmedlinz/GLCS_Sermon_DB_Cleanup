@@ -10,9 +10,8 @@ This helps identify inconsistencies in the database structure and find patterns
 in how columns are used across different tables.
 """
 
-import csv      # For reading TSV files
-import os       # For checking if files exist
-import sys      # For system operations like exit codes
+import csv  # For reading TSV files
+import sys  # For system operations like exit codes
 from collections import Counter  # A special dictionary that counts things automatically
 from dataclasses import dataclass  # For creating simple data container classes
 from typing import Dict, List, Set  # For type hints to make code clearer
@@ -22,7 +21,7 @@ from config import (
     APP_ENVIRONMENT,
     APP_NAME,
     COMPUTERNAME,
-    HEADERS_TSV_PATH,  # Path to the columns.tsv file
+    HEADERS_TSV_PATH,
     USERNAME,
 )
 from report import (
@@ -33,6 +32,7 @@ from report import (
     report_section,
     report_subsection,
 )
+from utils import check_file_exists
 
 # ----- Settings and Constants -----
 
@@ -54,6 +54,7 @@ ESSENTIAL_COLUMNS = ["Date", "Title", "Text"]
 
 # ----- Data Container Class -----
 
+
 @dataclass
 class HeadersAnalysis:
     """
@@ -70,28 +71,13 @@ class HeadersAnalysis:
         total_columns: The total number of columns processed
     """
 
-    column_counter: Counter    # Counts occurrences of each column name
+    column_counter: Counter  # Counts occurrences of each column name
     column_tables: Dict[str, Set[str]]  # Column name -> set of tables with that column
     table_columns: Dict[str, Set[str]]  # Table name -> set of columns in that table
     total_columns: int  # Total number of columns across all tables
 
 
 # ----- Helper Functions -----
-
-def check_file_exists(file_path: str) -> bool:
-    """
-    Makes sure the file we want to analyze actually exists.
-
-    Args:
-        file_path: The path to the file we want to check
-
-    Returns:
-        True if the file exists, False if it doesn't
-    """
-    if not os.path.exists(file_path):
-        report_error(f"Error: Headers file not found at '{file_path}'")
-        return False
-    return True
 
 
 def read_headers_file(file_path: str = HEADERS_TSV_PATH) -> HeadersAnalysis:
@@ -146,9 +132,9 @@ def read_headers_file(file_path: str = HEADERS_TSV_PATH) -> HeadersAnalysis:
                     continue
 
                 # Extract the data we need from this row
-                table_name = row[1]      # Table_Name is in column 2
-                column_name = row[4]     # Column_Name is in column 5
-                new_column_name = row[5] # New_Column_Name is in column 6
+                table_name = row[1]  # Table_Name is in column 2
+                column_name = row[4]  # Column_Name is in column 5
+                new_column_name = row[5]  # New_Column_Name is in column 6
 
                 # Add this column to the table's set of columns
                 if table_name not in table_columns:
@@ -279,7 +265,7 @@ def main() -> int:
         report_section("Column Name Statistics")
 
         # Step 1: Check if the headers file exists
-        if not check_file_exists(HEADERS_TSV_PATH):
+        if not check_file_exists(HEADERS_TSV_PATH, f"Error: Headers file not found at '{HEADERS_TSV_PATH}'"):
             return 1  # Exit with error code
 
         # Step 2: Read and analyze the headers file

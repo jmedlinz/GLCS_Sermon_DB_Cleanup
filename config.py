@@ -15,9 +15,9 @@ APP_NAME = "GLCS Sermon DB Cleanup"
 # (like using test data during development but real data in production)
 
 # Define possible environment types
-DEV_ENV = "DEV"      # Development environment (for writing and testing code)
-TEST_ENV = "TEST"    # Testing environment (for formal testing)
-PROD_ENV = "PROD"    # Production environment (the "real" system in actual use)
+DEV_ENV = "DEV"  # Development environment (for writing and testing code)
+TEST_ENV = "TEST"  # Testing environment (for formal testing)
+PROD_ENV = "PROD"  # Production environment (the "real" system in actual use)
 
 # Set which environment we're currently using
 # Change this value to DEV_ENV during development if needed

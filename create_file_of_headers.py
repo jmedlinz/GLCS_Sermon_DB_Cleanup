@@ -11,12 +11,11 @@ The script will preserve any customizations from a previous columns.tsv file if 
 It handles tables that are enabled or disabled according to the master_table.tsv file.
 """
 
-import csv      # For reading and writing TSV files
-import os       # For checking if files exist and working with file paths
-from contextlib import contextmanager  # For safely managing database connections
-from typing import Any, Dict, List, Set, Tuple  # For type hints to make code clearer
+import csv  # For reading and writing TSV files
+import os  # For checking if files exist and working with file paths
+from typing import Dict, List, Set, Tuple  # For type hints to make code clearer
 
-import pyodbc   # Library for connecting to Microsoft Access databases
+import pyodbc  # Library for connecting to Microsoft Access databases
 
 # Import configuration settings and reporting functions
 from config import (
@@ -26,7 +25,6 @@ from config import (
     HEADERS_TSV_FILE,
     HEADERS_TSV_PATH,
     MASTER_TSV_PATH,
-    SOURCE_DB_FILE,
     SOURCE_DB_PATH,
     USERNAME,
 )
@@ -39,54 +37,11 @@ from report import (
     report_section,
     report_subsection,
 )
+from utils import check_file_exists, database_connection, format_value
 
 # Constants - minimum number of columns we expect in our files
 MIN_MASTER_COLUMNS = 3  # ID, Table Name, Enabled
 MIN_HEADER_COLUMNS = 6  # Table ID, Table Name, Column ID, Enabled, Column Name, New Column Name
-
-
-@contextmanager
-def database_connection():
-    """
-    Creates a safe connection to the Microsoft Access database.
-
-    This is a context manager that allows us to use a "with" statement for database connections.
-    It ensures the database connection is properly closed even if errors occur.
-
-    Usage:
-        with database_connection() as (connection, cursor):
-            # do something with the connection and cursor
-    """
-    # Create the connection string for Microsoft Access
-    conn_str = r"DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};" r"DBQ=" + SOURCE_DB_PATH + ";"
-    conn = None    # Initialize connection variable
-    cursor = None  # Initialize cursor variable
-
-    try:
-        # Try to connect to the database
-        conn = pyodbc.connect(conn_str)
-        cursor = conn.cursor()
-        yield conn, cursor  # Return the connection and cursor to the caller
-    except pyodbc.Error as ex:
-        # Handle database connection errors
-        sqlstate = ex.args[0]
-        report_error("Error connecting to database.")
-        report_error_continue(f"SQLSTATE: {sqlstate}")
-        report_error_continue(f"Message: {ex}")
-
-        # Provide helpful message for a common error
-        if "IM002" in sqlstate:
-            report_error_continue("This error often means the ODBC driver is not installed or not found.")
-            report_error_continue(
-                "Ensure the Microsoft Access Database Engine Redistributable is installed (32-bit or 64-bit matching your Python)."
-            )
-        raise  # Re-raise the error after logging it
-    finally:
-        # Always try to close cursor and connection if they were opened
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def verify_files_exist() -> bool:
@@ -97,13 +52,11 @@ def verify_files_exist() -> bool:
         bool: True if all files exist, False if any are missing
     """
     # Check if the master table file exists
-    if not os.path.exists(MASTER_TSV_PATH):
-        report_error(f"Error: Master table file not found at '{MASTER_TSV_PATH}'")
+    if not check_file_exists(MASTER_TSV_PATH, f"Error: Master table file not found at '{MASTER_TSV_PATH}'"):
         return False
 
     # Check if the database file exists
-    if not os.path.exists(SOURCE_DB_PATH):
-        report_error(f"Error: Database file not found at '{SOURCE_DB_PATH}'")
+    if not check_file_exists(SOURCE_DB_PATH, f"Error: Database file not found at '{SOURCE_DB_PATH}'"):
         return False
 
     # All files exist
@@ -127,10 +80,10 @@ def read_master_tables() -> Tuple[List[Tuple[str, str]], List[str], int, Dict[st
     """
     report_subsection("Reading table names from master file")
 
-    tables = []               # Will store (table_id, table_name) pairs for enabled tables
-    skipped_tables = 0        # Counter for how many tables we're skipping
+    tables = []  # Will store (table_id, table_name) pairs for enabled tables
+    skipped_tables = 0  # Counter for how many tables we're skipping
     skipped_table_names = []  # Names of tables we're skipping
-    master_table_enabled = {} # Information about all tables (enabled and disabled)
+    master_table_enabled = {}  # Information about all tables (enabled and disabled)
 
     try:
         # Open and read the master TSV file
@@ -142,9 +95,9 @@ def read_master_tables() -> Tuple[List[Tuple[str, str]], List[str], int, Dict[st
             for row in reader:
                 # Make sure the row has enough columns
                 if len(row) >= MIN_MASTER_COLUMNS:
-                    table_id = row[0]      # ID is in the first column
-                    table_name = row[1]    # Table name is in the second column
-                    enabled = row[2]       # Enabled flag is in the third column
+                    table_id = row[0]  # ID is in the first column
+                    table_name = row[1]  # Table name is in the second column
+                    enabled = row[2]  # Enabled flag is in the third column
 
                     # Store information about all tables
                     master_table_enabled[table_name] = {"id": table_id, "enabled": enabled}
@@ -168,29 +121,6 @@ def read_master_tables() -> Tuple[List[Tuple[str, str]], List[str], int, Dict[st
         return tables, skipped_table_names, skipped_tables, master_table_enabled
     except Exception as ex:
         report_error(f"Error reading master table file: {ex}")
-        raise
-
-
-def connect_to_database() -> Tuple[pyodbc.Connection, pyodbc.Cursor]:
-    """
-    Connects to the Microsoft Access database.
-
-    Returns:
-        A tuple with the database connection and cursor objects
-
-    Raises:
-        Exception: If the connection fails
-    """
-    report_subsection("Connecting to database")
-    report_comment(f"Database file: '{SOURCE_DB_FILE}'")
-
-    try:
-        # Use our safe connection manager to connect to the database
-        with database_connection() as (conn, cursor):
-            report_info("Successfully connected")
-            return conn, cursor
-    except Exception:
-        # Let the calling function handle the error
         raise
 
 
@@ -391,24 +321,6 @@ def merge_headers(
     merged_headers.sort(key=lambda x: (x["table_name"], x["column_name"]))
 
     return merged_headers
-
-
-def format_value(value: Any) -> str:
-    """
-    Formats a value consistently for writing to the TSV file.
-
-    Args:
-        value: Any value that needs to be written
-
-    Returns:
-        A properly formatted string
-    """
-    if value is None:
-        return ""  # Convert None to empty string
-    elif isinstance(value, str):
-        return value.strip()  # Remove leading/trailing spaces
-    else:
-        return str(value)  # Convert anything else to string
 
 
 def write_headers_file(
