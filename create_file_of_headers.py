@@ -111,29 +111,156 @@ try:
 
     report_info(f"Retrieved {len(all_headers)} total columns from all tables")
 
+    # Dictionary to store enabled status for all tables from master file
+    master_table_enabled = {}
+    with open(MASTER_TSV_PATH, encoding="utf-8") as tsv_file:
+        reader = csv.reader(tsv_file, delimiter="\t")
+        next(reader)  # Skip header row
+        for row in reader:
+            if len(row) >= 3:
+                table_id, table_name, enabled = row[0], row[1], row[2]
+                master_table_enabled[table_name] = {"id": table_id, "enabled": enabled}
+
+    # Create a dictionary of all tables and columns from the database query
+    db_headers = {(table_name, column_name): table_id for table_id, table_name, column_name in all_headers}
+
+    # Check if headers file exists and read it if it does
+    existing_headers = {}
+    if os.path.exists(HEADERS_TSV_PATH):
+        report_subsection("Reading existing headers file for merging")
+        try:
+            with open(HEADERS_TSV_PATH, encoding="utf-8") as tsv_file:
+                reader = csv.reader(tsv_file, delimiter="\t")
+                header_row = next(reader)  # Skip header row
+
+                for row in reader:
+                    if len(row) >= 6:
+                        table_id, table_name, column_id, enabled, column_name, new_column_name = row
+                        existing_headers[(table_name, column_name)] = {
+                            "table_id": table_id,
+                            "column_id": column_id,
+                            "enabled": enabled,
+                            "new_column_name": new_column_name,
+                        }
+
+            report_info(f"Read {len(existing_headers)} columns from existing headers file")
+        except Exception as ex:
+            report_error_continue(f"Error reading existing headers file: {ex}")
+            report_info("Will create a new headers file")
+            existing_headers = {}
+
+    # Prepare the merged headers
+    merged_headers = []
+
+    # Process tables and columns from the database
+    for table_id, table_name, column_name in all_headers:
+        if (table_name, column_name) in existing_headers:
+            # Column exists in both DB and existing file - keep existing data but update enabled status
+            existing_data = existing_headers[(table_name, column_name)]
+            merged_headers.append(
+                {
+                    "table_id": table_id,
+                    "table_name": table_name,
+                    "column_id": existing_data["column_id"],
+                    "enabled": master_table_enabled[table_name]["enabled"],  # Update enabled to match master
+                    "column_name": column_name,
+                    "new_column_name": existing_data["new_column_name"],
+                }
+            )
+        else:
+            # New column from DB - add with enabled status from master
+            merged_headers.append(
+                {
+                    "table_id": table_id,
+                    "table_name": table_name,
+                    "column_id": "",  # Will be assigned during write
+                    "enabled": master_table_enabled[table_name]["enabled"],
+                    "column_name": column_name,
+                    "new_column_name": column_name,  # Default new name to original name
+                }
+            )
+
+        # Mark as processed
+        if (table_name, column_name) in existing_headers:
+            existing_headers[(table_name, column_name)]["processed"] = True
+
+    # Handle entries in existing file that weren't in the database results
+    for (table_name, column_name), data in existing_headers.items():
+        if data.get("processed"):
+            continue  # Skip already processed entries
+
+        if table_name not in master_table_enabled:
+            # Table in headers but not in master - if enabled, set to disabled
+            if data["enabled"] == "1":
+                merged_headers.append(
+                    {
+                        "table_id": data["table_id"],
+                        "table_name": table_name,
+                        "column_id": data["column_id"],
+                        "enabled": "0",  # Set to disabled
+                        "column_name": column_name,
+                        "new_column_name": data["new_column_name"],
+                    }
+                )
+            else:
+                # Already disabled, keep as is
+                merged_headers.append(
+                    {
+                        "table_id": data["table_id"],
+                        "table_name": table_name,
+                        "column_id": data["column_id"],
+                        "enabled": data["enabled"],
+                        "column_name": column_name,
+                        "new_column_name": data["new_column_name"],
+                    }
+                )
+        else:
+            # Table in both, but column not retrieved from DB (possibly disabled table in master)
+            merged_headers.append(
+                {
+                    "table_id": data["table_id"],
+                    "table_name": table_name,
+                    "column_id": data["column_id"],
+                    "enabled": master_table_enabled[table_name]["enabled"],  # Set to match master
+                    "column_name": column_name,
+                    "new_column_name": data["new_column_name"],
+                }
+            )
+
+    # Sort by table name and column name
+    merged_headers.sort(key=lambda x: (x["table_name"], x["column_name"]))
+
+    # Assign sequential column IDs if needed
+    column_id_counter = 1
+    for header in merged_headers:
+        if not header["column_id"]:
+            header["column_id"] = str(column_id_counter)
+            column_id_counter += 1
+
     # Write headers to TSV file
     report_subsection("Creating output file")
     with open(HEADERS_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
         writer = csv.writer(tsv_file, delimiter="\t")
-        # Update header row with new column order (already using underscores)
+        # Write header row
         writer.writerow(["Table_ID", "Table_Name", "Column_ID", "Enabled", "Column_Name", "New_Column_Name"])
 
-        for idx, (table_id, table_name, column_name) in enumerate(
-            sorted(all_headers, key=lambda x: (x[1], x[2])), start=1
-        ):
-            # Only trim leading/trailing spaces, don't replace spaces with underscores
-            table_name_trimmed = table_name.strip()
-            column_name_trimmed = column_name.strip()
+        # Write merged data
+        for header in merged_headers:
+            table_name_trimmed = header["table_name"].strip()
+            column_name_trimmed = header["column_name"].strip()
 
-            # Write row with new column order
             writer.writerow(
                 [
-                    table_id.strip() if isinstance(table_id, str) else table_id,
+                    header["table_id"].strip() if isinstance(header["table_id"], str) else header["table_id"],
                     table_name_trimmed,
-                    idx,
-                    1,  # Enabled column defaulted to 1
+                    header["column_id"],
+                    header["enabled"],
                     column_name_trimmed,
-                    column_name_trimmed,  # New_Column_Name defaulted to Column_Name
+                    (
+                        header["new_column_name"].strip()
+                        if isinstance(header["new_column_name"], str)
+                        else header["new_column_name"]
+                    ),
                 ]
             )
 

@@ -32,15 +32,45 @@ report_header(APP_NAME, COMPUTERNAME, APP_ENVIRONMENT, USERNAME)
 
 report_section("Create Master Table From Access Database")
 
-# Check if the output file already exists
-if os.path.exists(MASTER_TSV_PATH):
-    report_error(f"Error: Output file '{MASTER_TSV_PATH}' already exists. Remove it or use a different filename.")
-    exit(1)
-
 # Check if the database file exists
 if not os.path.exists(SOURCE_DB_PATH):
     report_error(f"Error: Database file not found at '{SOURCE_DB_PATH}'")
     exit()
+
+# Data structure to hold existing file entries
+existing_entries = {}
+next_id = 1
+
+# Check if the output file already exists
+if os.path.exists(MASTER_TSV_PATH):
+    report_info(f"Master TSV file already exists at '{MASTER_TSV_PATH}'. Will merge with database information.")
+    try:
+        with open(MASTER_TSV_PATH, encoding="utf-8") as tsv_file:
+            reader = csv.reader(tsv_file, delimiter="\t")
+            headers = next(reader)  # Skip header row
+
+            for row in reader:
+                if len(row) >= 5:  # Ensure the row has all needed columns
+                    table_id = int(row[0]) if row[0].isdigit() else 0
+                    table_name = row[1].strip()
+                    enabled = row[2]
+                    event = row[3]
+                    series = row[4]
+
+                    existing_entries[table_name] = {
+                        "id": table_id,
+                        "enabled": enabled,
+                        "event": event,
+                        "series": series,
+                    }
+
+                    # Keep track of the highest ID for new entries
+                    next_id = max(next_id, table_id + 1)
+
+        report_info(f"Read {len(existing_entries)} table entries from existing master file")
+    except Exception as ex:
+        report_error(f"Error reading existing master file: {ex}")
+        exit(1)
 
 # Construct the connection string
 # You might need to adjust the driver name based on your installed version
@@ -71,20 +101,59 @@ try:
         if not table_name.startswith("MSys"):
             table_names.append(table_name)
 
-    report_info(f"Retrieved {len(table_names)} user tables")
+    report_info(f"Retrieved {len(table_names)} user tables from database")
 
-    # Write table names to TSV file with additional "ID", "Enabled", "Event", and "Series" columns
-    report_subsection("Creating output file")
+    # Track changes for reporting
+    added_tables = []
+    removed_tables = []
+    retained_tables = []
+
+    # Process merging logic
+    merged_entries = {}
+
+    # 1. Process tables from database
+    for table in sorted(table_names):
+        table = table.strip()
+        if table in existing_entries:
+            # Table exists in both - retain file info
+            merged_entries[table] = existing_entries[table]
+            retained_tables.append(table)
+        else:
+            # Table in DB but not in file - add with defaults
+            merged_entries[table] = {"id": next_id, "enabled": "1", "event": "0", "series": "0"}
+            next_id += 1
+            added_tables.append(table)
+
+    # 2. Identify tables in file but not in DB
+    for table in existing_entries:
+        if table not in table_names:
+            removed_tables.append(table)
+
+    # Write merged data to TSV file
+    report_subsection("Creating merged output file")
     with open(MASTER_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
-        writer = csv.writer(tsv_file, delimiter="\t")  # Use tab as the delimiter
-        # Strip spaces from header row
-        writer.writerow(["ID".strip(), "Table Name".strip(), "Enabled".strip(), "Event".strip(), "Series".strip()])
+        writer = csv.writer(tsv_file, delimiter="\t")
+        writer.writerow(["ID", "Table Name", "Enabled", "Event", "Series"])
 
-        for idx, table in enumerate(sorted(table_names), start=1):  # Sort names alphabetically and add ID
-            writer.writerow([idx, table.strip(), 1, 0, 0])  # Strip spaces from table name and set default values
+        for table in sorted(merged_entries.keys()):
+            entry = merged_entries[table]
+            writer.writerow([entry["id"], table, entry["enabled"], entry["event"], entry["series"]])
 
-    report_info("Successfully wrote table names to TSV")
+    # Report merge statistics
+    report_info(f"Successfully wrote {len(merged_entries)} table entries to master TSV file")
     report_comment(f"Filename: '{MASTER_TSV_FILE}'")
+
+    if added_tables:
+        report_comment(f"Added {len(added_tables)} new tables:")
+        for table in added_tables:
+            report_comment(f"   - {table}")
+
+    if removed_tables:
+        report_comment(f"Removed {len(removed_tables)} tables not found in database:")
+        for table in removed_tables:
+            report_comment(f"   - {table}")
+
+    report_comment(f"Retained {len(retained_tables)} existing tables")
 
 except pyodbc.Error as ex:
     sqlstate = ex.args[0]
