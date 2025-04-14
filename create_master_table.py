@@ -12,7 +12,9 @@ from config import (
     APP_ENVIRONMENT,
     APP_NAME,
     COMPUTERNAME,
-    DATA_DIR,
+    MASTER_TSV_FILE,
+    MASTER_TSV_PATH,
+    SOURCE_DB_FILE,
     SOURCE_DB_PATH,
     USERNAME,
 )
@@ -30,16 +32,9 @@ report_header(APP_NAME, COMPUTERNAME, APP_ENVIRONMENT, USERNAME)
 
 report_section("Create Master Table From Access Database")
 
-# --- Configuration ---
-# Set the output TSV file path
-output_tsv_file = "master_table.tsv"
-output_tsv_path = os.path.join(DATA_DIR, output_tsv_file)
-source_db_file = os.path.basename(SOURCE_DB_PATH)
-# --- End Configuration ---
-
 # Check if the output file already exists
-if os.path.exists(output_tsv_path):
-    report_error(f"Error: Output file '{output_tsv_path}' already exists. Remove it or use a different filename.")
+if os.path.exists(MASTER_TSV_PATH):
+    report_error(f"Error: Output file '{MASTER_TSV_PATH}' already exists. Remove it or use a different filename.")
     exit(1)
 
 # Check if the database file exists
@@ -59,7 +54,7 @@ conn = None  # Initialize conn to None
 cursor = None  # Initialize cursor to None
 
 report_subsection("Connecting to database")
-report_comment(f"Database file: '{source_db_file}'")
+report_comment(f"Database file: '{SOURCE_DB_FILE}'")
 
 try:
     # Establish the database connection
@@ -80,7 +75,7 @@ try:
 
     # Write table names to TSV file with additional "ID", "Active", "Event", and "Series" columns
     report_subsection("Creating output file")
-    with open(output_tsv_path, "w", newline="", encoding="utf-8") as tsv_file:
+    with open(MASTER_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
         writer = csv.writer(tsv_file, delimiter="\t")  # Use tab as the delimiter
         writer.writerow(["ID", "Table Name", "Active", "Event", "Series"])  # Write header with additional columns
         for idx, table in enumerate(sorted(table_names), start=1):  # Sort names alphabetically and add ID
@@ -89,7 +84,7 @@ try:
             )  # Set "Active" to 1, "Event" to 0, and "Series" to 0 for all rows
 
     report_info("Successfully wrote table names to TSV")
-    report_comment(f"Filename: '{output_tsv_file}'")
+    report_comment(f"Filename: '{MASTER_TSV_FILE}'")
 
 except pyodbc.Error as ex:
     sqlstate = ex.args[0]
