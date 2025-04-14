@@ -81,9 +81,7 @@ try:
         writer.writerow(["ID".strip(), "Table Name".strip(), "Enabled".strip(), "Event".strip(), "Series".strip()])
 
         for idx, table in enumerate(sorted(table_names), start=1):  # Sort names alphabetically and add ID
-            writer.writerow(
-                [idx, table.strip(), 1, 0, 0]
-            )  # Strip spaces from table name and set default values
+            writer.writerow([idx, table.strip(), 1, 0, 0])  # Strip spaces from table name and set default values
 
     report_info("Successfully wrote table names to TSV")
     report_comment(f"Filename: '{MASTER_TSV_FILE}'")

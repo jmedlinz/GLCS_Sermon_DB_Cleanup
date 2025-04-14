@@ -101,25 +101,25 @@ try:
     report_subsection("Creating output file")
     with open(HEADERS_TSV_PATH, "w", newline="", encoding="utf-8") as tsv_file:
         writer = csv.writer(tsv_file, delimiter="\t")
-        # Update header row with new column order
+        # Update header row with new column order (already using underscores)
         writer.writerow(["Table_ID", "Table_Name", "Column_ID", "Enabled", "Column_Name", "New_Column_Name"])
 
         for idx, (table_id, table_name, column_name) in enumerate(
             sorted(all_headers, key=lambda x: (x[1], x[2])), start=1
         ):
-            # Replace spaces with underscores and trim leading/trailing spaces
-            table_name_no_spaces = table_name.replace(" ", "_").strip()
-            column_name_no_spaces = column_name.replace(" ", "_").strip()
+            # Only trim leading/trailing spaces, don't replace spaces with underscores
+            table_name_trimmed = table_name.strip()
+            column_name_trimmed = column_name.strip()
 
             # Write row with new column order
             writer.writerow(
                 [
                     table_id.strip() if isinstance(table_id, str) else table_id,
-                    table_name_no_spaces,
+                    table_name_trimmed,
                     idx,
                     1,  # Enabled column defaulted to 1
-                    column_name_no_spaces,
-                    column_name_no_spaces,  # New_Column_Name defaulted to Column_Name
+                    column_name_trimmed,
+                    column_name_trimmed,  # New_Column_Name defaulted to Column_Name
                 ]
             )
 
